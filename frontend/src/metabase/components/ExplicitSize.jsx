@@ -19,8 +19,10 @@ export default ComposedComponent =>
 
     componentDidMount() {
       // media query listener, ensure re-layout when printing
-      this._mql = window.matchMedia("print");
-      this._mql.addListener(this._updateSize);
+      if (window.matchMedia) {
+        this._mql = window.matchMedia("print");
+        this._mql.addListener(this._updateSize);
+      }
 
       const element = ReactDOM.findDOMNode(this);
       if (element) {

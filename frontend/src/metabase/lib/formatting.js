@@ -21,18 +21,26 @@ import { rangeForValue } from "metabase/lib/dataset";
 import { getFriendlyName } from "metabase/visualizations/lib/utils";
 import { decimalCount } from "metabase/visualizations/lib/numeric";
 
+import Field from "metabase-lib/lib/metadata/Field";
 import type { Column, Value } from "metabase/meta/types/Dataset";
-import type { Field } from "metabase/meta/types/Field";
 import type { DatetimeUnit } from "metabase/meta/types/Query";
 import type { Moment } from "metabase/meta/types";
 
 export type FormattingOptions = {
-  column?: Column,
+  column?: Column | Field,
   majorWidth?: number,
   type?: "axis" | "cell" | "tooltip",
-  comma?: boolean,
   jsx?: boolean,
+  // number options:
+  comma?: boolean,
   compact?: boolean,
+  round?: boolean,
+};
+
+const DEFAULT_NUMBER_OPTIONS: FormattingOptions = {
+  comma: true,
+  compact: false,
+  round: true,
 };
 
 const PRECISION_NUMBER_FORMATTER = d3.format(".2r");
@@ -43,11 +51,14 @@ const BINNING_DEGREES_FORMATTER = (value, binWidth) => {
   return d3.format(`.0${decimalCount(binWidth)}f`)(value);
 };
 
+const getMonthFormat = options => (options.compact ? "MMM" : "MMMM");
+const getDayFormat = options => (options.compact ? "ddd" : "dddd");
+
 // use en dashes, for Maz
 const RANGE_SEPARATOR = ` – `;
 
 export function formatNumber(number: number, options: FormattingOptions = {}) {
-  options = { comma: true, ...options };
+  options = { ...DEFAULT_NUMBER_OPTIONS, ...options };
   if (options.compact) {
     if (number === 0) {
       // 0 => 0
@@ -67,11 +78,14 @@ export function formatNumber(number: number, options: FormattingOptions = {}) {
     // numbers between 1 and -1 round to 2 significant digits with extra 0s stripped off
     return PRECISION_NUMBER_FORMATTER(number).replace(/\.?0+$/, "");
   } else {
-    // anything else rounds to at most 2 decimal points
+    // anything else rounds to at most 2 decimal points, unless disabled
+    if (options.round) {
+      number = d3.round(number, 2);
+    }
     if (options.comma) {
-      return FIXED_NUMBER_FORMATTER(d3.round(number, 2));
+      return FIXED_NUMBER_FORMATTER(number);
     } else {
-      return FIXED_NUMBER_FORMATTER_NO_COMMA(d3.round(number, 2));
+      return FIXED_NUMBER_FORMATTER_NO_COMMA(number);
     }
   }
 }
@@ -145,25 +159,29 @@ export function formatTimeRangeWithUnit(
   }
 
   // Tooltips should show full month name, but condense "MMMM D, YYYY - MMMM D, YYYY" to "MMMM D - D, YYYY" etc
-  const monthFormat = options.type === "tooltip" ? "MMMM" : "MMM";
-  const condensed = options.type === "tooltip";
+  const monthFormat =
+    options.type === "tooltip" ? "MMMM" : getMonthFormat(options);
+  const condensed = options.compact || options.type === "tooltip";
 
   const start = m.clone().startOf(unit);
   const end = m.clone().endOf(unit);
   if (start.isValid() && end.isValid()) {
     if (!condensed || start.year() !== end.year()) {
+      // January 1, 2018 - January 2, 2019
       return (
         start.format(`${monthFormat} D, YYYY`) +
         RANGE_SEPARATOR +
         end.format(`${monthFormat} D, YYYY`)
       );
     } else if (start.month() !== end.month()) {
+      // January 1 - Feburary 2, 2018
       return (
         start.format(`${monthFormat} D`) +
         RANGE_SEPARATOR +
         end.format(`${monthFormat} D, YYYY`)
       );
     } else {
+      // January 1 - 2, 2018
       return (
         start.format(`${monthFormat} D`) +
         RANGE_SEPARATOR +
@@ -195,11 +213,11 @@ export function formatTimeWithUnit(
     case "hour": // 12 AM - January 1, 2015
       return formatMajorMinor(
         m.format("h A"),
-        m.format("MMMM D, YYYY"),
+        m.format(`${getMonthFormat(options)} D, YYYY`),
         options,
       );
     case "day": // January 1, 2015
-      return m.format("MMMM D, YYYY");
+      return m.format(`${getMonthFormat(options)} D, YYYY`);
     case "week": // 1st - 2015
       if (options.type === "tooltip") {
         // tooltip show range like "January 1 - 7, 2017"
@@ -219,11 +237,11 @@ export function formatTimeWithUnit(
     case "month": // January 2015
       return options.jsx ? (
         <div>
-          <span className="text-bold">{m.format("MMMM")}</span>{" "}
+          <span className="text-bold">{m.format(getMonthFormat(options))}</span>{" "}
           {m.format("YYYY")}
         </div>
       ) : (
-        m.format("MMMM") + " " + m.format("YYYY")
+        m.format(`${getMonthFormat(options)} YYYY`)
       );
     case "year": // 2015
       return m.format("YYYY");
@@ -241,7 +259,7 @@ export function formatTimeWithUnit(
         moment()
           // $FlowFixMe:
           .day(value - 1)
-          .format("dddd")
+          .format(getDayFormat(options))
       );
     case "day-of-month":
       return moment()
@@ -256,7 +274,7 @@ export function formatTimeWithUnit(
         moment()
           // $FlowFixMe:
           .month(value - 1)
-          .format("MMMM")
+          .format(getMonthFormat(options))
       );
     case "quarter-of-year": // January
       return moment()
@@ -318,32 +336,22 @@ export function formatValue(value: Value, options: FormattingOptions = {}) {
 
   options = {
     jsx: false,
+    remap: true,
     comma: isNumber(column),
     ...options,
   };
 
-  // "column" may also be a field object
-  // $FlowFixMe: remapping is a special field added by Visualization.jsx or getMetadata selector
-  if (column && column.remapping && column.remapping.size > 0) {
-    // $FlowFixMe
-    const remappedValueSample = column.remapping.values().next().value;
-
-    // Even if the column only has a list of analyzed values without remappings, those values
-    // are keys in `remapping` array with value `undefined`
-    const hasSetRemappings = remappedValueSample !== undefined;
-    if (hasSetRemappings) {
-      // $FlowFixMe
-      if (column.remapping.has(value)) {
-        // $FlowFixMe
-        return column.remapping.get(value);
-      }
-
-      const remappedValueIsString = typeof remappedValueSample;
-      if (remappedValueIsString) {
-        // A simple way to hide intermediate ticks for a numeral value that has been remapped to a string
-        return null;
-      }
+  if (options.remap && column) {
+    // $FlowFixMe: column could be Field or Column
+    if (column.hasRemappedValue && column.hasRemappedValue(value)) {
+      // $FlowFixMe: column could be Field or Column
+      return column.remappedValue(value);
     }
+    // or it may be a raw column object with a "remapping" object
+    if (column.remapping instanceof Map && column.remapping.has(value)) {
+      return column.remapping.get(value);
+    }
+    // TODO: get rid of one of these two code paths?
   }
 
   if (value == undefined) {
@@ -448,7 +456,7 @@ export function duration(milliseconds: number) {
 
 // Removes trailing "id" from field names
 export function stripId(name: string) {
-  return name && name.replace(/ id$/i, "");
+  return name && name.replace(/ id$/i, "").trim();
 }
 
 export function slugify(name: string) {

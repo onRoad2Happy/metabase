@@ -1,7 +1,9 @@
 import React, { Component } from "react";
+import { connect } from "react-redux";
+import { t, jt } from "c-3po";
+
 import Button from "metabase/components/Button";
 import SchedulePicker from "metabase/components/SchedulePicker";
-import { connect } from "react-redux";
 import { createAlert, deleteAlert, updateAlert } from "metabase/alert/alert";
 import ModalContent from "metabase/components/ModalContent";
 import { getUser, getUserIsAdmin } from "metabase/selectors/user";
@@ -213,7 +215,7 @@ export class AlertEducationalScreen extends Component {
             <p
               className={`${classes} ml2 text-left`}
             >{jt`When a raw data question ${(
-              <strong>returns any results</strong>
+              <strong>{t`returns any results`}</strong>
             )}`}</p>
           </div>
           <div
@@ -224,7 +226,7 @@ export class AlertEducationalScreen extends Component {
             <p
               className={`${classes} mr2 text-right`}
             >{jt`When a line or bar ${(
-              <strong>crosses a goal line</strong>
+              <strong>{t`crosses a goal line`}</strong>
             )}`}</p>
           </div>
           <div
@@ -234,7 +236,9 @@ export class AlertEducationalScreen extends Component {
             <RetinaImage src="app/assets/img/alerts/education-illustration-03-progress.png" />
             <p
               className={`${classes} ml2 text-left`}
-            >{jt`When a progress bar ${<strong>reaches its goal</strong>}`}</p>
+            >{jt`When a progress bar ${(
+              <strong>{t`reaches its goal`}</strong>
+            )}`}</p>
           </div>
         </div>
         <Button
@@ -644,15 +648,15 @@ export class RawDataAlertTip extends Component {
 
 export const MultiSeriesAlertTip = () => (
   <div>{jt`${(
-    <strong>Heads up:</strong>
+    <strong>{t`Heads up`}:</strong>
   )} Goal-based alerts aren't yet supported for charts with more than one line, so this alert will be sent whenever the chart has ${(
-    <em>results</em>
+    <em>{t`results`}</em>
   )}.`}</div>
 );
 export const NormalAlertTip = () => (
   <div>{jt`${(
-    <strong>Tip:</strong>
+    <strong>{t`Tip`}:</strong>
   )} This kind of alert is most useful when your saved question doesn’t ${(
-    <em>usually</em>
+    <em>{t`usually`}</em>
   )} return any results, but you want to know when it does.`}</div>
 );

@@ -15,7 +15,7 @@ import Segment from "metabase-lib/lib/metadata/Segment";
 
 import _ from "underscore";
 import { shallowEqual } from "recompose";
-import { getFieldValues } from "metabase/lib/query/field";
+import { getFieldValues, getRemappings } from "metabase/lib/query/field";
 
 import {
   getOperators,
@@ -84,13 +84,20 @@ export const getMetadata = createSelector(
     hydrateList(meta.tables, "segments", meta.segments);
     hydrateList(meta.tables, "metrics", meta.metrics);
 
-    hydrate(meta.tables, "db", t => meta.databases[t.db_id || t.db]);
+    hydrate(meta.tables, "db", t => meta.database(t.db_id || t.db));
 
-    hydrate(meta.segments, "table", s => meta.tables[s.table_id]);
-    hydrate(meta.metrics, "table", m => meta.tables[m.table_id]);
-    hydrate(meta.fields, "table", f => meta.tables[f.table_id]);
+    hydrate(meta.segments, "table", s => meta.table(s.table_id));
+    hydrate(meta.metrics, "table", m => meta.table(m.table_id));
+    hydrate(meta.fields, "table", f => meta.table(f.table_id));
 
-    hydrate(meta.fields, "target", f => meta.fields[f.fk_target_field_id]);
+    hydrate(meta.fields, "target", f => meta.field(f.fk_target_field_id));
+    hydrate(meta.fields, "name_field", f => {
+      if (f.name_field != null) {
+        return meta.field(f.name_field);
+      } else if (f.table && f.isPK()) {
+        return _.find(f.table.fields, f => f.isEntityName());
+      }
+    });
 
     hydrate(meta.fields, "operators", f => getOperators(f, f.table));
     hydrate(meta.tables, "aggregation_options", t =>
@@ -98,7 +105,8 @@ export const getMetadata = createSelector(
     );
     hydrate(meta.tables, "breakout_options", t => getBreakouts(t.fields));
 
-    hydrate(meta.fields, "remapping", f => new Map(getFieldValues(f)));
+    hydrate(meta.fields, "values", f => getFieldValues(f));
+    hydrate(meta.fields, "remapping", f => new Map(getRemappings(f)));
 
     hydrateLookup(meta.databases, "tables", "id");
     hydrateLookup(meta.tables, "fields", "id");
@@ -220,10 +228,14 @@ export const makeGetMergedParameterFieldValues = () => {
 export function copyObjects(metadata, objects, Klass) {
   let copies = {};
   for (const object of Object.values(objects)) {
-    // $FlowFixMe
-    copies[object.id] = new Klass(object);
-    // $FlowFixMe
-    copies[object.id].metadata = metadata;
+    if (object && object.id != null) {
+      // $FlowFixMe
+      copies[object.id] = new Klass(object);
+      // $FlowFixMe
+      copies[object.id].metadata = metadata;
+    } else {
+      console.warn("Missing id:", object);
+    }
   }
   return copies;
 }

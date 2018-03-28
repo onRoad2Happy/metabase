@@ -18,8 +18,10 @@ import {
   MetricSchema,
 } from "metabase/schema";
 
-import { getIn, assocIn } from "icepick";
+import { getIn, assocIn, updateIn } from "icepick";
 import _ from "underscore";
+
+import { getMetadata } from "metabase/selectors/metadata";
 
 import {
   MetabaseApi,
@@ -353,7 +355,8 @@ export const fetchField = createThunkAction(FETCH_FIELD, function(
   return async function(dispatch, getState) {
     const requestStatePath = ["metadata", "fields", fieldId];
     const existingStatePath = requestStatePath;
-    const getData = () => MetabaseApi.field_get({ fieldId });
+    const getData = async () =>
+      normalize(await MetabaseApi.field_get({ fieldId }), FieldSchema);
 
     return await fetchData({
       dispatch,
@@ -371,7 +374,7 @@ export const fetchFieldValues = createThunkAction(FETCH_FIELD_VALUES, function(
   reload,
 ) {
   return async function(dispatch, getState) {
-    const requestStatePath = ["metadata", "fields", fieldId];
+    const requestStatePath = ["metadata", "fields", fieldId, "values"];
     const existingStatePath = requestStatePath;
     const getData = () => MetabaseApi.field_values({ fieldId });
 
@@ -417,6 +420,11 @@ export const updateFieldValues = createThunkAction(
 
 export const ADD_PARAM_VALUES = "metabase/metadata/ADD_PARAM_VALUES";
 export const addParamValues = createAction(ADD_PARAM_VALUES);
+
+export const ADD_FIELDS = "metabase/metadata/ADD_FIELDS";
+export const addFields = createAction(ADD_FIELDS, fields => {
+  return normalize(fields, [FieldSchema]);
+});
 
 export const UPDATE_FIELD = "metabase/metadata/UPDATE_FIELD";
 export const updateField = createThunkAction(UPDATE_FIELD, function(field) {
@@ -614,6 +622,47 @@ export const fetchDatabasesWithMetadata = createThunkAction(
   },
 );
 
+const ADD_REMAPPINGS = "metabase/metadata/ADD_REMAPPINGS";
+export const addRemappings = createAction(
+  ADD_REMAPPINGS,
+  (fieldId, remappings) => ({ fieldId, remappings }),
+);
+
+const FETCH_REMAPPING = "metabase/metadata/FETCH_REMAPPING";
+export const fetchRemapping = createThunkAction(
+  FETCH_REMAPPING,
+  (value, fieldId) => async (dispatch, getState) => {
+    const metadata = getMetadata(getState());
+    const field = metadata.fields[fieldId];
+    const remappedField = field && field.remappedField();
+    if (field && remappedField && !field.hasRemappedValue(value)) {
+      const fieldId = (field.target || field).id;
+      const remappedFieldId = remappedField.id;
+      fetchData({
+        dispatch,
+        getState,
+        requestStatePath: [
+          "metadata",
+          "remapping",
+          fieldId,
+          JSON.stringify(value),
+        ],
+        getData: async () => {
+          const remapping = await MetabaseApi.field_remapping({
+            value,
+            fieldId,
+            remappedFieldId,
+          });
+          if (remapping) {
+            // FIXME: should this be field.id (potentially the FK) or fieldId (always the PK)?
+            dispatch(addRemappings(field.id, [remapping]));
+          }
+        },
+      });
+    }
+  },
+);
+
 const FETCH_REAL_DATABASES_WITH_METADATA =
   "metabase/metadata/FETCH_REAL_DATABASES_WITH_METADATA";
 export const fetchRealDatabasesWithMetadata = createThunkAction(
@@ -646,19 +695,10 @@ const tables = handleActions({}, {});
 
 const fields = handleActions(
   {
-    [FETCH_FIELD]: {
-      next: (state, { payload: field }) => ({
-        ...state,
-        [field.id]: {
-          ...(state[field.id] || {}),
-          ...field,
-        },
-      }),
-    },
     [FETCH_FIELD_VALUES]: {
       next: (state, { payload: fieldValues }) =>
         fieldValues
-          ? assocIn(state, [fieldValues.field_id, "values"], fieldValues)
+          ? assocIn(state, [fieldValues.field_id, "values"], fieldValues.values)
           : state,
     },
     [ADD_PARAM_VALUES]: {
@@ -669,6 +709,10 @@ const fields = handleActions(
         return state;
       },
     },
+    [ADD_REMAPPINGS]: (state, { payload: { fieldId, remappings } }) =>
+      updateIn(state, [fieldId, "remappings"], (existing = []) =>
+        Array.from(new Map(existing.concat(remappings))),
+      ),
   },
   {},
 );

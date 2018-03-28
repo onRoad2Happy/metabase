@@ -1,6 +1,8 @@
 /* eslint "react/prop-types": "warn" */
 
 import React, { Component } from "react";
+import { t, jt } from "c-3po";
+
 import VisualizationErrorMessage from "./VisualizationErrorMessage";
 import Visualization from "metabase/visualizations/components/Visualization.jsx";
 import { datasetContainsNoResults } from "metabase/lib/dataset";
@@ -63,9 +65,9 @@ export default class VisualizationResult extends Component {
                     <p>
                       {jt`You can also ${(
                         <a className="link" onClick={this.showCreateAlertModal}>
-                          get an alert
+                          {t`get an alert`}
                         </a>
-                      )} when there are any results.`}
+                      )} when there are some results.`}
                     </p>
                   )}
                 <button

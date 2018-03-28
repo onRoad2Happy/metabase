@@ -46,7 +46,7 @@ import Toggle from "metabase/components/Toggle";
 import { Link } from "react-router";
 import SettingsXrayForm from "metabase/admin/settings/components/SettingsXrayForm";
 import { ComparisonDropdown } from "metabase/xray/components/ComparisonDropdown";
-import { TestPopover } from "metabase/components/Popover";
+import Popover from "metabase/components/Popover";
 import ItemLink from "metabase/xray/components/ItemLink";
 import { TableLikeComparisonXRay } from "metabase/xray/containers/TableLikeComparison";
 import {
@@ -217,7 +217,7 @@ describe("xray integration tests", () => {
       click(segmentXRay.find(ComparisonDropdown).find(".Icon-compare"));
       const comparisonPopover = segmentXRay
         .find(ComparisonDropdown)
-        .find(TestPopover);
+        .find(Popover);
       expect(
         comparisonPopover.find(
           `a[href="/xray/compare/segment/${segmentId}/table/1/approximate"]`,
@@ -268,8 +268,7 @@ describe("xray integration tests", () => {
       const rightSideDropdown = comparisonDropdowns.at(1);
 
       click(leftSideDropdown.find(ItemLink));
-      const leftSidePopover = leftSideDropdown.find(TestPopover);
-      console.log(leftSidePopover.debug());
+      const leftSidePopover = leftSideDropdown.find(Popover);
       expect(
         leftSidePopover.find(
           `a[href="/xray/compare/segment/${segmentId}/table/1/approximate"]`,
@@ -283,8 +282,7 @@ describe("xray integration tests", () => {
 
       // right side should be be table and show only segments options as comparision options atm
       click(rightSideDropdown.find(ItemLink));
-      const rightSidePopover = rightSideDropdown.find(TestPopover);
-      console.log(rightSidePopover.debug());
+      const rightSidePopover = rightSideDropdown.find(Popover);
       expect(
         rightSidePopover.find(
           `a[href="/xray/compare/segments/${segmentId}/${segmentId2}/approximate"]`,

@@ -4034,3 +4034,26 @@ databaseChangeLog:
                   name: options
                   type: text
                   remarks: 'Serialized JSON containing various options like QB behavior.'
+  - changeSet:
+      id: 74
+      author: camsaul
+      comment: 'Added 0.29.0'
+      changes:
+        - addColumn:
+            tableName: metabase_field
+            columns:
+              - column:
+                  name: has_field_values
+                  type: text
+                  remarks: 'Whether we have FieldValues ("list"), should ad-hoc search ("search"), disable entirely ("none"), or infer dynamically (null)"'
+  - changeSet:
+      id: 75
+      author: camsaul
+      comment: 'Added 0.28.2'
+      changes:
+        - addColumn:
+            tableName: report_card
+            columns:
+              name: read_permissions
+              type: text
+              remarks: 'Permissions required to view this Card and run its query.'

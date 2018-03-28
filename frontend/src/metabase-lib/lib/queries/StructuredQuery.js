@@ -49,6 +49,8 @@ import AggregationWrapper from "./Aggregation";
 import AggregationOption from "metabase-lib/lib/metadata/AggregationOption";
 import Utils from "metabase/lib/utils";
 
+import { isSegmentFilter } from "metabase/lib/query/filter";
+
 export const STRUCTURED_QUERY_TEMPLATE = {
   database: null,
   type: "query",
@@ -479,6 +481,20 @@ export default class StructuredQuery extends AtomicQuery {
   }
 
   /**
+   *  @returns @type {Segment}s that are currently applied to the question
+   */
+  segments() {
+    return this.filters()
+      .filter(f => isSegmentFilter(f))
+      .map(segmentFilter => {
+        // segment id is stored as the second part of the filter clause
+        // e.x. ["SEGMENT", 1]
+        const segmentId = segmentFilter[1];
+        return this.metadata().segment(segmentId);
+      });
+  }
+
+  /**
    * @returns whether a new filter can be added or not
    */
   canAddFilter(): boolean {
@@ -629,9 +645,8 @@ export default class StructuredQuery extends AtomicQuery {
       const dimensionIsFKReference = dimension =>
         dimension.field && dimension.field() && dimension.field().isFK();
 
-      const filteredNonFKDimensions = this.dimensions()
-        .filter(dimensionFilter)
-        .filter(d => !dimensionIsFKReference(d));
+      const filteredNonFKDimensions = this.dimensions().filter(dimensionFilter);
+      // .filter(d => !dimensionIsFKReference(d));
 
       for (const dimension of filteredNonFKDimensions) {
         fieldOptions.count++;

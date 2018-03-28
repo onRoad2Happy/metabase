@@ -6,7 +6,6 @@ import {
   isPK as isTypePK,
   TYPE,
 } from "metabase/lib/types";
-import { getFieldValues } from "metabase/lib/query/field";
 
 // primary field types used for picking operators, etc
 export const NUMBER = "NUMBER";
@@ -16,6 +15,7 @@ export const BOOLEAN = "BOOLEAN";
 export const DATE_TIME = "DATE_TIME";
 export const LOCATION = "LOCATION";
 export const COORDINATE = "COORDINATE";
+export const FOREIGN_KEY = "FOREIGN_KEY";
 
 // other types used for various purporses
 export const ENTITY = "ENTITY";
@@ -54,6 +54,9 @@ const TYPES = {
   },
   [ENTITY]: {
     special: [TYPE.FK, TYPE.PK, TYPE.Name],
+  },
+  [FOREIGN_KEY]: {
+    special: [TYPE.FK],
   },
   [SUMMABLE]: {
     include: [NUMBER],
@@ -103,6 +106,7 @@ export function getFieldType(field) {
     DATE_TIME,
     LOCATION,
     COORDINATE,
+    FOREIGN_KEY,
     NUMBER,
     STRING,
     STRING_LIKE,
@@ -125,6 +129,8 @@ export const isMetric = col =>
 
 export const isFK = field => field && isTypeFK(field.special_type);
 export const isPK = field => field && isTypePK(field.special_type);
+export const isEntityName = field =>
+  isa(field && field.special_type, TYPE.Name);
 
 export const isAny = col => true;
 
@@ -191,23 +197,6 @@ function equivalentArgument(field, table) {
       type: "select",
       values: [{ key: true, name: t`True` }, { key: false, name: t`False` }],
     };
-  }
-
-  if (isCategory(field)) {
-    const values = getFieldValues(field);
-    if (values && values.length > 0) {
-      return {
-        type: "select",
-        values: values
-          .filter(([value, displayValue]) => value != null)
-          .map(([value, displayValue]) => ({
-            key: value,
-            // NOTE Atte Keinänen 8/7/17: Similar logic as in getHumanReadableValue of lib/query/field
-            name: displayValue ? displayValue : String(value),
-          }))
-          .sort((a, b) => (a.key === b.key ? 0 : a.key < b.key ? -1 : 1)),
-      };
-    }
   }
 
   if (isDate(field)) {
@@ -313,6 +302,13 @@ const OPERATORS = {
   },
 };
 
+const DEFAULT_OPERATORS = [
+  { name: "=", verboseName: t`Is` },
+  { name: "!=", verboseName: t`Is not` },
+  { name: "IS_NULL", verboseName: t`Is empty` },
+  { name: "NOT_NULL", verboseName: t`Not empty` },
+];
+
 // ordered list of operators and metadata per type
 const OPERATORS_BY_TYPE_ORDERED = {
   [NUMBER]: [
@@ -321,44 +317,44 @@ const OPERATORS_BY_TYPE_ORDERED = {
     { name: ">", verboseName: t`Greater than` },
     { name: "<", verboseName: t`Less than` },
     { name: "BETWEEN", verboseName: t`Between` },
-    { name: ">=", verboseName: t`Greater than or equal to`, advanced: true },
-    { name: "<=", verboseName: t`Less than or equal to`, advanced: true },
-    { name: "IS_NULL", verboseName: t`Is empty`, advanced: true },
-    { name: "NOT_NULL", verboseName: t`Not empty`, advanced: true },
+    { name: ">=", verboseName: t`Greater than or equal to` },
+    { name: "<=", verboseName: t`Less than or equal to` },
+    { name: "IS_NULL", verboseName: t`Is empty` },
+    { name: "NOT_NULL", verboseName: t`Not empty` },
   ],
   [STRING]: [
     { name: "=", verboseName: t`Is` },
     { name: "!=", verboseName: t`Is not` },
     { name: "CONTAINS", verboseName: t`Contains` },
     { name: "DOES_NOT_CONTAIN", verboseName: t`Does not contain` },
-    { name: "IS_NULL", verboseName: t`Is empty`, advanced: true },
-    { name: "NOT_NULL", verboseName: t`Not empty`, advanced: true },
-    { name: "STARTS_WITH", verboseName: t`Starts with`, advanced: true },
-    { name: "ENDS_WITH", verboseName: t`Ends with`, advanced: true },
+    { name: "IS_NULL", verboseName: t`Is empty` },
+    { name: "NOT_NULL", verboseName: t`Not empty` },
+    { name: "STARTS_WITH", verboseName: t`Starts with` },
+    { name: "ENDS_WITH", verboseName: t`Ends with` },
   ],
   [STRING_LIKE]: [
     { name: "=", verboseName: t`Is` },
     { name: "!=", verboseName: t`Is not` },
-    { name: "IS_NULL", verboseName: t`Is empty`, advanced: true },
-    { name: "NOT_NULL", verboseName: t`Not empty`, advanced: true },
+    { name: "IS_NULL", verboseName: t`Is empty` },
+    { name: "NOT_NULL", verboseName: t`Not empty` },
   ],
   [DATE_TIME]: [
     { name: "=", verboseName: t`Is` },
     { name: "<", verboseName: t`Before` },
     { name: ">", verboseName: t`After` },
     { name: "BETWEEN", verboseName: t`Between` },
-    { name: "IS_NULL", verboseName: t`Is empty`, advanced: true },
-    { name: "NOT_NULL", verboseName: t`Not empty`, advanced: true },
+    { name: "IS_NULL", verboseName: t`Is empty` },
+    { name: "NOT_NULL", verboseName: t`Not empty` },
   ],
   [LOCATION]: [
     { name: "=", verboseName: t`Is` },
     { name: "!=", verboseName: t`Is not` },
-    { name: "IS_NULL", verboseName: t`Is empty`, advanced: true },
-    { name: "NOT_NULL", verboseName: t`Not empty`, advanced: true },
+    { name: "IS_NULL", verboseName: t`Is empty` },
+    { name: "NOT_NULL", verboseName: t`Not empty` },
   ],
   [COORDINATE]: [
     { name: "=", verboseName: t`Is` },
-    { name: "!=", verboseName: t`Is no` },
+    { name: "!=", verboseName: t`Is not` },
     { name: "INSIDE", verboseName: t`Inside` },
   ],
   [BOOLEAN]: [
@@ -366,12 +362,8 @@ const OPERATORS_BY_TYPE_ORDERED = {
     { name: "IS_NULL", verboseName: t`Is empty` },
     { name: "NOT_NULL", verboseName: t`Not empty` },
   ],
-  [UNKNOWN]: [
-    { name: "=", verboseName: t`Is` },
-    { name: "!=", verboseName: t`Is not` },
-    { name: "IS_NULL", verboseName: t`Is empty`, advanced: true },
-    { name: "NOT_NULL", verboseName: t`Not empty`, advanced: true },
-  ],
+  [FOREIGN_KEY]: DEFAULT_OPERATORS,
+  [UNKNOWN]: DEFAULT_OPERATORS,
 };
 
 const MORE_VERBOSE_NAMES = {
@@ -607,10 +599,11 @@ export const ICON_MAPPING = {
   [STRING_LIKE]: "string",
   [NUMBER]: "int",
   [BOOLEAN]: "io",
+  [FOREIGN_KEY]: "connections",
 };
 
 export function getIconForField(field) {
-  return ICON_MAPPING[getFieldType(field)];
+  return ICON_MAPPING[getFieldType(field)] || "unknown";
 }
 
 export function computeMetadataStrength(table) {

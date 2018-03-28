@@ -1,5 +1,6 @@
 // code for filling in the missing values in a set of "datas"
 
+import { t } from "c-3po";
 import d3 from "d3";
 import moment from "moment";
 
@@ -34,7 +35,7 @@ function fillMissingValues(datas, xValues, fillValue, getKey = v => v) {
         }
       });
       if (map.size > 0) {
-        console.warn(t`"xValues missing!`, map, newRows);
+        console.warn(t`xValues missing!`, map, newRows);
       }
       return newRows;
     });
