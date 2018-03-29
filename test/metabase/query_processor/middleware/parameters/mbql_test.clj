@@ -1,20 +1,14 @@
 (ns metabase.query-processor.middleware.parameters.mbql-test
   "Tests for *MBQL* parameter substitution."
   (:require [expectations :refer :all]
-            [honeysql.core :as hsql]
             [metabase
              [query-processor :as qp]
              [query-processor-test :refer [first-row format-rows-by non-timeseries-engines rows]]
              [util :as u]]
-            [metabase.driver.generic-sql :as sql]
-            [metabase.models
-             [field :refer [Field]]
-             [table :refer [Table]]]
             [metabase.query-processor.middleware.expand :as ql]
-            [metabase.query-processor.middleware.parameters.mbql :refer :all]
+            [metabase.query-processor.middleware.parameters.mbql :as mbql-params :refer :all]
             [metabase.test.data :as data]
-            [metabase.test.data.datasets :as datasets]
-            [metabase.util.honeysql-extensions :as hx]))
+            [metabase.test.data.datasets :as datasets]))
 
 (defn- expand-parameters [query]
   (expand (dissoc query :parameters) (:parameters query)))
@@ -246,3 +240,12 @@
                                              :value  ["2014-06" "2015-06"]}]))]
     (-> (qp/process-query outer-query)
         :data :native_form)))
+
+;; make sure that "ID" type params get converted to numbers when appropriate
+(expect
+  [:= ["field-id" (data/id :venues :id)] 1]
+  (#'mbql-params/build-filter-clause {:type   "id"
+                                      :target ["dimension" ["field-id" (data/id :venues :id)]]
+                                      :slug   "venue_id"
+                                      :value  "1"
+                                      :name   "Venue ID"}))

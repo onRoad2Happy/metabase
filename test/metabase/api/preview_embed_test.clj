@@ -1,10 +1,15 @@
 (ns metabase.api.preview-embed-test
   (:require [expectations :refer :all]
             [metabase.api.embed-test :as embed-test]
-            [metabase.models.dashboard :refer [Dashboard]]
-            [metabase.test.data :as data]
-            [metabase.test.data.users :as test-users]
-            [metabase.test.util :as tu]
+            [metabase.models
+             [card :refer [Card]]
+             [dashboard :refer [Dashboard]]]
+            [metabase.test
+             [data :as data]
+             [util :as tu]]
+            [metabase.test.data
+             [datasets :as datasets]
+             [users :as test-users]]
             [metabase.util :as u]
             [toucan.util.test :as tt]))
 
@@ -356,3 +361,26 @@
                                                                    :params            {:num_birds 2}})
                                                                 "?2nd_date_seen=2018-02-14")))
           :status))))
+
+;; Make sure that ID params correctly get converted to numbers as needed (Postgres-specific)...
+(datasets/expect-with-engine :postgres
+  [[1]]
+  (embed-test/with-embedding-enabled-and-new-secret-key
+    (tt/with-temp Card [card {:dataset_query {:database (data/id)
+                                              :type     :query
+                                              :query    {:source-table (data/id :venues)
+                                                         :aggregation  [:count]}}}]
+      (embed-test/with-temp-dashcard [dashcard {:dash     {:parameters [{:name "Venue ID"
+                                                                         :slug "venue_id"
+                                                                         :id   "22486e00"
+                                                                         :type "id"}]}
+                                                :dashcard {:card_id            (u/get-id card)
+                                                           :parameter_mappings [{:parameter_id "22486e00"
+                                                                                 :card_id      (u/get-id card)
+                                                                                 :target       [:dimension
+                                                                                                [:field-id
+                                                                                                 (data/id :venues :id)]]}]}}]
+        (-> ((test-users/user->client :crowberto) :get (str (dashcard-url dashcard {:_embedding_params {:venue_id "enabled"}})
+                                                            "?venue_id=1"))
+            :data
+            :rows)))))
